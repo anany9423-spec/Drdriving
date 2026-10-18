@@ -1,0 +1,1444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Dr. Driving 3D: Street Multiplayer</title>
+<!-- Three.js 3D Engine & PeerJS WebRTC Multiplayer -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+<style>
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #070b14;
+    font-family: 'Segoe UI', system-ui, Roboto, sans-serif;
+    touch-action: none;
+    color: #fff;
+  }
+  #gameCanvasContainer {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+  }
+
+  /* GLASSMORPHISM OVERLAYS */
+  .overlay {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at center, rgba(15, 23, 42, 0.78), rgba(4, 7, 15, 0.94));
+    backdrop-filter: blur(8px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    z-index: 30;
+  }
+  .hidden { display: none !important; }
+
+  .logo-badge {
+    background: linear-gradient(135deg, #facc15, #f97316);
+    color: #0f172a;
+    font-weight: 900;
+    font-size: 0.75rem;
+    padding: 4px 12px;
+    border-radius: 20px;
+    letter-spacing: 1.5px;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+  }
+  h1 {
+    font-size: 2.1rem;
+    font-weight: 900;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    background: linear-gradient(180deg, #ffffff, #94a3b8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-align: center;
+    margin-bottom: 4px;
+  }
+  .subtitle {
+    color: #94a3b8;
+    font-size: 0.85rem;
+    margin-bottom: 14px;
+    text-align: center;
+  }
+
+  .top-stats {
+    display: flex;
+    gap: 14px;
+    background: rgba(30, 41, 59, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    padding: 8px 18px;
+    border-radius: 30px;
+    font-weight: 800;
+    font-size: 0.92rem;
+    margin-bottom: 16px;
+  }
+  .gold { color: #facc15; }
+
+  /* GARAGE SELECTOR */
+  .garage-bar {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+    max-width: 400px;
+    margin-bottom: 16px;
+  }
+  .car-card {
+    flex: 1;
+    background: rgba(15, 23, 42, 0.85);
+    border: 2px solid #334155;
+    border-radius: 14px;
+    padding: 10px 6px;
+    text-align: center;
+    cursor: pointer;
+    transition: 0.15s;
+  }
+  .car-card.active {
+    border-color: #facc15;
+    background: rgba(30, 41, 59, 0.95);
+    box-shadow: 0 0 15px rgba(250, 204, 21, 0.25);
+    transform: translateY(-2px);
+  }
+  .car-swatch {
+    width: 36px;
+    height: 18px;
+    border-radius: 6px;
+    margin: 0 auto 6px;
+    border: 1px solid rgba(255,255,255,0.4);
+  }
+  .car-title { font-size: 0.8rem; font-weight: 800; }
+  .car-sub { font-size: 0.7rem; color: #facc15; margin-top: 2px; font-weight: 700; }
+
+  /* BUTTONS */
+  .btn-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+    max-width: 330px;
+  }
+  .btn {
+    border: none;
+    border-radius: 12px;
+    padding: 14px 16px;
+    font-size: 0.98rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: transform 0.1s;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary {
+    background: linear-gradient(180deg, #facc15, #eab308);
+    color: #0f172a;
+    box-shadow: 0 4px 0 #a16207;
+  }
+  .btn-mp {
+    background: linear-gradient(180deg, #ec4899, #db2777);
+    color: #fff;
+    box-shadow: 0 4px 0 #9d174d;
+  }
+  .btn-park {
+    background: linear-gradient(180deg, #38bdf8, #0284c7);
+    color: #fff;
+    box-shadow: 0 4px 0 #0369a1;
+  }
+  .btn-ghost {
+    background: rgba(255,255,255,0.1);
+    color: #e2e8f0;
+    border: 1px solid rgba(255,255,255,0.2);
+  }
+
+  /* MULTIPLAYER LOBBY BOX */
+  .mp-card {
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 16px;
+    padding: 16px;
+    width: 100%;
+    max-width: 340px;
+    margin-bottom: 14px;
+    text-align: center;
+  }
+  .code-display {
+    font-size: 2rem;
+    font-weight: 900;
+    letter-spacing: 6px;
+    color: #facc15;
+    background: rgba(0,0,0,0.4);
+    padding: 8px 14px;
+    border-radius: 10px;
+    margin: 8px 0;
+    font-variant-numeric: tabular-nums;
+  }
+  .code-input {
+    width: 100%;
+    padding: 12px;
+    border-radius: 10px;
+    border: 2px solid #475569;
+    background: #0f172a;
+    color: #fff;
+    font-size: 1.2rem;
+    font-weight: 800;
+    text-align: center;
+    letter-spacing: 4px;
+    margin-bottom: 10px;
+  }
+
+  /* IN-GAME TOP HUD */
+  #hud {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    right: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    z-index: 15;
+    pointer-events: none;
+  }
+  .hud-box {
+    background: rgba(15, 23, 42, 0.82);
+    border: 1px solid rgba(255,255,255,0.16);
+    backdrop-filter: blur(4px);
+    padding: 8px 14px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+  }
+  .speed-val {
+    font-size: 1.45rem;
+    font-weight: 900;
+    color: #38bdf8;
+    font-variant-numeric: tabular-nums;
+  }
+  #camBtn {
+    pointer-events: auto;
+    background: rgba(15, 23, 42, 0.88);
+    border: 1px solid rgba(255,255,255,0.25);
+    color: #fff;
+    padding: 10px 14px;
+    border-radius: 12px;
+    font-weight: 800;
+    font-size: 0.82rem;
+    cursor: pointer;
+  }
+
+  /* RIVAL TAG IN 3D SPACE */
+  #rivalTag {
+    position: absolute;
+    background: rgba(236, 72, 153, 0.92);
+    color: #fff;
+    font-weight: 900;
+    font-size: 0.72rem;
+    padding: 3px 8px;
+    border-radius: 8px;
+    pointer-events: none;
+    transform: translate(-50%, -100%);
+    z-index: 12;
+    white-space: nowrap;
+    border: 1px solid #fff;
+  }
+
+  /* TOAST POPUP */
+  #toast {
+    position: absolute;
+    top: 86px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(90deg, #facc15, #f97316);
+    color: #0f172a;
+    font-weight: 900;
+    font-size: 0.88rem;
+    padding: 7px 18px;
+    border-radius: 20px;
+    z-index: 25;
+    opacity: 0;
+    pointer-events: none;
+    transition: 0.2s;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+  }
+
+  /* COCKPIT TOUCH CONTROLS */
+  #controlsLayer {
+    position: absolute;
+    inset: 0;
+    z-index: 14;
+    pointer-events: none;
+  }
+  /* Steering Wheel */
+  #wheelWrap {
+    position: absolute;
+    bottom: 24px;
+    left: 24px;
+    width: 150px;
+    height: 150px;
+    pointer-events: auto;
+    touch-action: none;
+  }
+  #wheelSvg {
+    width: 100%;
+    height: 100%;
+    filter: drop-shadow(0 6px 12px rgba(0,0,0,0.65));
+  }
+  /* Pedals */
+  .pedal {
+    position: absolute;
+    bottom: 24px;
+    border-radius: 12px;
+    border: 2px solid #94a3b8;
+    background: linear-gradient(180deg, #334155, #1e293b);
+    color: #fff;
+    font-weight: 900;
+    font-size: 0.75rem;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding-bottom: 10px;
+    pointer-events: auto;
+    touch-action: none;
+    box-shadow: 0 6px 12px rgba(0,0,0,0.6);
+    transition: transform 0.06s, background 0.1s;
+  }
+  #gasPedal {
+    right: 22px;
+    width: 64px;
+    height: 120px;
+  }
+  #gasPedal.pressed {
+    transform: translateY(6px) scaleY(0.95);
+    background: linear-gradient(180deg, #22c55e, #15803d);
+    border-color: #86efac;
+  }
+  #brakePedal {
+    right: 98px;
+    width: 62px;
+    height: 92px;
+  }
+  #brakePedal.pressed {
+    transform: translateY(6px) scaleY(0.95);
+    background: linear-gradient(180deg, #ef4444, #b91c1c);
+    border-color: #fca5a5;
+  }
+  /* Gear Shifter */
+  #gearBox {
+    position: absolute;
+    right: 22px;
+    bottom: 160px;
+    width: 50px;
+    height: 126px;
+    background: rgba(15, 23, 42, 0.9);
+    border: 2px solid #64748b;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    padding: 4px;
+    gap: 4px;
+    pointer-events: auto;
+    box-shadow: 0 6px 12px rgba(0,0,0,0.5);
+  }
+  .gear-slot {
+    flex: 1;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 900;
+    font-size: 0.95rem;
+    color: #94a3b8;
+    cursor: pointer;
+  }
+  .gear-slot.active-D { background: #38bdf8; color: #0f172a; }
+  .gear-slot.active-R { background: #f97316; color: #0f172a; }
+  .gear-slot.active-P { background: #22c55e; color: #0f172a; }
+</style>
+</head>
+<body>
+
+<div id="gameCanvasContainer"></div>
+
+<!-- Floating 3D Rival Tag -->
+<div id="rivalTag" class="hidden">🏎️ RIVAL (0m)</div>
+
+<!-- Top HUD -->
+<div id="hud" class="hidden">
+  <div class="hud-box">
+    <div id="hudModeTxt" style="font-weight:900; font-size:0.8rem; color:#facc15;">HIGHWAY 3D</div>
+    <div style="font-size:0.82rem; margin-top:2px;">🪙 <span id="hudCoins">0</span></div>
+  </div>
+  <div class="hud-box" style="text-align:center;">
+    <div class="speed-val"><span id="hudSpeed">0</span> <small style="font-size:0.65rem; color:#94a3b8;">KM/H</small></div>
+    <div id="hudSubTxt" style="font-size:0.75rem; color:#cbd5e1; font-weight:700;">Dist: 0m</div>
+  </div>
+  <button id="camBtn">🎥 CAM: CHASE</button>
+</div>
+
+<div id="toast">🔥 NEAR MISS +25!</div>
+
+<!-- Interactive Cockpit Controls -->
+<div id="controlsLayer" class="hidden">
+  <div id="wheelWrap">
+    <svg id="wheelSvg" viewBox="0 0 100 100">
+      <circle cx="50" cy="50" r="42" fill="none" stroke="#1e293b" stroke-width="12"/>
+      <circle cx="50" cy="50" r="42" fill="none" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="6 4"/>
+      <!-- Red top center marker -->
+      <path d="M 43 8.5 A 42 42 0 0 1 57 8.5" fill="none" stroke="#ef4444" stroke-width="12.5"/>
+      <!-- Spokes -->
+      <path d="M 14 50 L 86 50 M 50 50 L 50 86" stroke="#64748b" stroke-width="9" stroke-linecap="round"/>
+      <circle cx="50" cy="50" r="16" fill="#0f172a" stroke="#facc15" stroke-width="2.5"/>
+      <text x="50" y="53" font-size="7" font-weight="900" fill="#facc15" text-anchor="middle">DR</text>
+    </svg>
+  </div>
+
+  <div id="gearBox">
+    <div class="gear-slot active-D" data-gear="D">D</div>
+    <div class="gear-slot" data-gear="R">R</div>
+    <div class="gear-slot" data-gear="P">P</div>
+  </div>
+
+  <div id="brakePedal" class="pedal">BRAKE</div>
+  <div id="gasPedal" class="pedal">GAS</div>
+</div>
+
+<!-- MAIN MENU OVERLAY -->
+<div id="menuOverlay" class="overlay">
+  <div class="logo-badge">WEBGL 3D + LIVE MULTIPLAYER</div>
+  <h1>DR. DRIVING 3D</h1>
+  <div class="subtitle">Real-Time Street Racing & Precision Parking</div>
+
+  <div class="top-stats">
+    <span class="gold">🪙 <span id="menuCoins">100</span></span>
+    <span>🏆 Best: <span id="menuBest">0</span>m</span>
+    <span>🅿️ Park Lvl: <span id="menuParkLvl">1</span></span>
+  </div>
+
+  <div class="garage-bar" id="garageBar"></div>
+
+  <div class="btn-stack">
+    <button class="btn btn-primary" id="btnHighway">🛣️ Endless 3D Highway</button>
+    <button class="btn btn-mp" id="btnMultiplayerMenu">🌐 Multiplayer 1v1 Race</button>
+    <button class="btn btn-park" id="btnParking">🅿️ 3D Precision Parking</button>
+  </div>
+</div>
+
+<!-- MULTIPLAYER LOBBY OVERLAY -->
+<div id="mpOverlay" class="overlay hidden">
+  <div class="logo-badge">REAL-TIME P2P WEBRTC</div>
+  <h1>1V1 STREET LOBBY</h1>
+  <div class="subtitle">Race 1,500m against a friend by Room Code or an AI Rival</div>
+
+  <div class="mp-card">
+    <div style="font-size:0.8rem; color:#94a3b8; font-weight:700;">YOUR ROOM CODE (SHARE WITH FRIEND)</div>
+    <div class="code-display" id="myRoomCode">....</div>
+    <div id="mpStatusTxt" style="font-size:0.78rem; color:#38bdf8; margin-bottom:10px;">Initializing P2P network...</div>
+
+    <hr style="border:none; border-top:1px solid rgba(255,255,255,0.1); margin:12px 0;">
+
+    <input type="text" id="joinCodeInput" class="code-input" placeholder="ENTER 4-DIGIT CODE" maxlength="4">
+    <button class="btn btn-primary" id="btnJoinRoom" style="width:100%;">🔗 Join Friend's Room</button>
+  </div>
+
+  <div class="btn-stack">
+    <button class="btn btn-mp" id="btnBotRace">⚡ Quick 1v1 Race (vs Smart AI Rival)</button>
+    <button class="btn btn-ghost" id="btnMpBack">⬅ Back to Garage</button>
+  </div>
+</div>
+
+<!-- GAME OVER / FINISH OVERLAY -->
+<div id="endOverlay" class="overlay hidden">
+  <h1 id="endTitle">CRASHED!</h1>
+  <div class="subtitle" id="endSub">Watch incoming traffic!</div>
+
+  <div class="mp-card">
+    <div style="display:flex; justify-content:space-between; margin:6px 0;">
+      <span>Distance Driven:</span><strong id="endDist">0m</strong>
+    </div>
+    <div style="display:flex; justify-content:space-between; margin:6px 0;">
+      <span>Near Miss Combo:</span><strong id="endNear">0</strong>
+    </div>
+    <div style="display:flex; justify-content:space-between; margin:6px 0; color:#facc15;">
+      <span>Total Coins Earned:</span><strong id="endCoins">+0</strong>
+    </div>
+  </div>
+
+  <div class="btn-stack">
+    <button class="btn btn-primary" id="btnRetry">🔄 Drive Again</button>
+    <button class="btn btn-ghost" id="btnHome">🏠 Main Garage</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ==========================================
+  // 1. SAVE DATA & CAR SPECS
+  // ==========================================
+  const saveData = JSON.parse(localStorage.getItem('drDrive3DSave')) || {
+    coins: 150,
+    bestDist: 0,
+    parkLevel: 1,
+    unlocked: [0],
+    selected: 0
+  };
+  function save() {
+    localStorage.setItem('drDrive3DSave', JSON.stringify(saveData));
+  }
+
+  const CARS = [
+    { name: 'Street Hatch', color: 0xef4444, hex: '#ef4444', price: 0, maxSpeed: 210, accel: 110, handling: 2.5 },
+    { name: 'Skyline GT',   color: 0x38bdf8, hex: '#38bdf8', price: 250, maxSpeed: 265, accel: 145, handling: 2.8 },
+    { name: 'Venom Apex',   color: 0xfacc15, hex: '#facc15', price: 600, maxSpeed: 320, accel: 185, handling: 3.2 }
+  ];
+
+  // ==========================================
+  // 2. SYNTHESIZED WEB AUDIO ENGINE
+  // ==========================================
+  let audioCtx = null, engineOsc = null, engineGain = null;
+  function initAudio() {
+    if (audioCtx) return;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    audioCtx = new AC();
+    engineOsc = audioCtx.createOscillator();
+    engineGain = audioCtx.createGain();
+    const filter = audioCtx.createBiquadFilter();
+
+    engineOsc.type = 'sawtooth';
+    engineOsc.frequency.value = 50;
+    filter.type = 'lowpass';
+    filter.frequency.value = 190;
+    engineGain.gain.value = 0;
+
+    engineOsc.connect(filter);
+    filter.connect(engineGain);
+    engineGain.connect(audioCtx.destination);
+    engineOsc.start();
+  }
+
+  function playTone(freq, type, dur, vol = 0.14) {
+    if (!audioCtx) return;
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    g.gain.setValueAtTime(vol, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+    o.connect(g);
+    g.connect(audioCtx.destination);
+    o.start();
+    o.stop(audioCtx.currentTime + dur);
+  }
+  const sfxCoin = () => { playTone(987, 'sine', 0.1, 0.15); setTimeout(() => playTone(1318, 'sine', 0.18, 0.15), 55); };
+  const sfxCrash = () => { playTone(80, 'sawtooth', 0.4, 0.28); playTone(55, 'square', 0.45, 0.25); };
+  const sfxWin = () => { [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => playTone(f, 'triangle', 0.22, 0.18), i * 85)); };
+
+  function showToast(txt) {
+    const t = document.getElementById('toast');
+    t.textContent = txt;
+    t.style.opacity = '1';
+    setTimeout(() => { t.style.opacity = '0'; }, 1200);
+  }
+
+  // ==========================================
+  // 3. THREE.JS 3D SCENE & ASSETS
+  // ==========================================
+  const container = document.getElementById('gameCanvasContainer');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x070b14);
+  scene.fog = new THREE.FogExp2(0x070b14, 0.0045);
+
+  const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 350);
+  const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  container.appendChild(renderer.domElement);
+
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  // Lights
+  const hemiLight = new THREE.HemisphereLight(0x93c5fd, 0x1e293b, 0.85);
+  scene.add(hemiLight);
+
+  const dirLight = new THREE.DirectionalLight(0xfef08a, 0.9);
+  dirLight.position.set(25, 45, 20);
+  dirLight.castShadow = true;
+  scene.add(dirLight);
+
+  // Procedural Window Texture for 3D Skyscrapers
+  function createBuildingTexture() {
+    const c = document.createElement('canvas');
+    c.width = 64; c.height = 128;
+    const x = c.getContext('2d');
+    x.fillStyle = '#0f172a';
+    x.fillRect(0, 0, 64, 128);
+    for (let y = 6; y < 120; y += 12) {
+      for (let w = 6; w < 58; w += 12) {
+        if (Math.random() > 0.35) {
+          x.fillStyle = Math.random() > 0.2 ? '#fef08a' : '#38bdf8';
+          x.fillRect(w, y, 7, 7);
+        }
+      }
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    return tex;
+  }
+  const buildingTex = createBuildingTexture();
+
+  // Detailed 3D Car Builder
+  function createCarMesh(hexColor, isPlayer = false) {
+    const group = new THREE.Group();
+
+    const bodyMat = new THREE.MeshStandardMaterial({ color: hexColor, roughness: 0.25, metalness: 0.6 });
+    const cabinMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.1, metalness: 0.9 });
+    const wheelMat = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.8 });
+
+    // Lower Chassis
+    const chassis = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.65, 4.3), bodyMat);
+    chassis.position.y = 0.55;
+    chassis.castShadow = true;
+    group.add(chassis);
+
+    // Sport Cabin
+    const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.72, 0.55, 2.1), cabinMat);
+    cabin.position.set(0, 1.1, -0.15);
+    group.add(cabin);
+
+    // Roof Paint Cap
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.08, 1.5), bodyMat);
+    roof.position.set(0, 1.38, -0.15);
+    group.add(roof);
+
+    // Sport Rear Spoiler
+    const spoilerWing = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.08, 0.35), bodyMat);
+    spoilerWing.position.set(0, 1.12, 1.95);
+    group.add(spoilerWing);
+
+    // 4 Wheels
+    const wheelGeo = new THREE.CylinderGeometry(0.38, 0.38, 0.28, 16);
+    wheelGeo.rotateZ(Math.PI / 2);
+    const wheelPositions = [
+      [-1.02, 0.38, -1.35], [1.02, 0.38, -1.35],
+      [-1.02, 0.38,  1.35], [1.02, 0.38,  1.35]
+    ];
+    wheelPositions.forEach(pos => {
+      const w = new THREE.Mesh(wheelGeo, wheelMat);
+      w.position.set(...pos);
+      group.add(w);
+    });
+
+    // Headlights
+    const hlMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
+    const hlLeft = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.18, 0.1), hlMat);
+    hlLeft.position.set(-0.68, 0.6, -2.16);
+    const hlRight = hlLeft.clone();
+    hlRight.position.x = 0.68;
+    group.add(hlLeft, hlRight);
+
+    // Taillights
+    const tlMat = new THREE.MeshBasicMaterial({ color: 0xef4444 });
+    const tlLeft = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.18, 0.1), tlMat);
+    tlLeft.position.set(-0.66, 0.65, 2.16);
+    const tlRight = tlLeft.clone();
+    tlRight.position.x = 0.66;
+    group.add(tlLeft, tlRight);
+
+    if (isPlayer) {
+      const spot = new THREE.SpotLight(0xfef08a, 1.4, 42, Math.PI / 5, 0.5);
+      spot.position.set(0, 1.0, -2.0);
+      spot.target.position.set(0, 0, -25);
+      group.add(spot);
+      group.add(spot.target);
+    }
+
+    return group;
+  }
+
+  // ==========================================
+  // 4. INFINITE 3D HIGHWAY & CITY GENERATOR
+  // ==========================================
+  const ROAD_WIDTH = 14; // 4 lanes * 3.5m
+  const LANE_X = [-5.25, -1.75, 1.75, 5.25];
+  const CHUNK_LEN = 40;
+  const NUM_CHUNKS = 10;
+  const roadChunks = [];
+
+  function createRoadChunk(zOffset) {
+    const g = new THREE.Group();
+
+    // Asphalt
+    const roadMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(ROAD_WIDTH, CHUNK_LEN),
+      new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.75 })
+    );
+    roadMesh.rotation.x = -Math.PI / 2;
+    roadMesh.receiveShadow = true;
+    g.add(roadMesh);
+
+    // Sidewalks / Shoulders
+    const swGeo = new THREE.BoxGeometry(35, 0.2, CHUNK_LEN);
+    const swMat = new THREE.MeshStandardMaterial({ color: 0x0f172a });
+    const leftSw = new THREE.Mesh(swGeo, swMat);
+    leftSw.position.set(-ROAD_WIDTH / 2 - 17.5, -0.05, 0);
+    const rightSw = leftSw.clone();
+    rightSw.position.x = ROAD_WIDTH / 2 + 17.5;
+    g.add(leftSw, rightSw);
+
+    // Guardrails / Curbs
+    const curbGeo = new THREE.BoxGeometry(0.45, 0.45, CHUNK_LEN);
+    const curbMat = new THREE.MeshStandardMaterial({ color: 0xef4444 });
+    const leftCurb = new THREE.Mesh(curbGeo, curbMat);
+    leftCurb.position.set(-ROAD_WIDTH / 2 - 0.22, 0.22, 0);
+    const rightCurb = leftCurb.clone();
+    rightCurb.position.x = ROAD_WIDTH / 2 + 0.22;
+    g.add(leftCurb, rightCurb);
+
+    // Center Double Yellow Line
+    const centerLine = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.28, CHUNK_LEN),
+      new THREE.MeshBasicMaterial({ color: 0xfacc15 })
+    );
+    centerLine.rotation.x = -Math.PI / 2;
+    centerLine.position.y = 0.02;
+    g.add(centerLine);
+
+    // Dashed Lane Dividers
+    const dashGeo = new THREE.PlaneGeometry(0.15, 4);
+    const dashMat = new THREE.MeshBasicMaterial({ color: 0xcbd5e1 });
+    [-3.5, 3.5].forEach(lx => {
+      for (let dz = -CHUNK_LEN / 2 + 4; dz < CHUNK_LEN / 2; dz += 10) {
+        const d = new THREE.Mesh(dashGeo, dashMat);
+        d.rotation.x = -Math.PI / 2;
+        d.position.set(lx, 0.02, dz);
+        g.add(d);
+      }
+    });
+
+    // 3D Skyscrapers on Both Sides
+    const bMat = new THREE.MeshStandardMaterial({ map: buildingTex, roughness: 0.4 });
+    [-1, 1].forEach(side => {
+      const h = 14 + Math.random() * 28;
+      const b = new THREE.Mesh(new THREE.BoxGeometry(9, h, 14), bMat);
+      b.position.set(side * (ROAD_WIDTH / 2 + 8.5), h / 2, (Math.random() - 0.5) * 14);
+      g.add(b);
+
+      // Streetlamp pole
+      const pole = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.1, 0.1, 7),
+        new THREE.MeshBasicMaterial({ color: 0x64748b })
+      );
+      pole.position.set(side * (ROAD_WIDTH / 2 + 0.8), 3.5, 0);
+      g.add(pole);
+    });
+
+    g.position.z = zOffset;
+    scene.add(g);
+    return g;
+  }
+
+  for (let i = 0; i < NUM_CHUNKS; i++) {
+    roadChunks.push(createRoadChunk(-i * CHUNK_LEN + CHUNK_LEN));
+  }
+
+  // ==========================================
+  // 5. PLAYER, RIVAL & DYNAMIC ENTITIES
+  // ==========================================
+  let playerMesh = createCarMesh(CARS[saveData.selected].color, true);
+  scene.add(playerMesh);
+
+  let rivalMesh = createCarMesh(0xec4899, false);
+  rivalMesh.visible = false;
+  scene.add(rivalMesh);
+
+  function rebuildPlayerCar() {
+    scene.remove(playerMesh);
+    playerMesh = createCarMesh(CARS[saveData.selected].color, true);
+    scene.add(playerMesh);
+  }
+
+  const player = {
+    x: 1.75,
+    z: 0,
+    speed: 0,
+    angle: 0,
+    gear: 'D',
+    coinsEarned: 0,
+    nearMisses: 0
+  };
+
+  const rival = {
+    active: false,
+    isBot: false,
+    x: -1.75,
+    z: 0,
+    angle: 0,
+    speed: 0
+  };
+
+  let trafficList = [];
+  let coinList = [];
+  let coneList = [];
+  let parkingBayMesh = null;
+
+  function clearWorldEntities() {
+    trafficList.forEach(t => scene.remove(t.mesh));
+    coinList.forEach(c => scene.remove(c.mesh));
+    coneList.forEach(c => scene.remove(c.mesh));
+    if (parkingBayMesh) scene.remove(parkingBayMesh);
+    trafficList = [];
+    coinList = [];
+    coneList = [];
+    parkingBayMesh = null;
+  }
+
+  // ==========================================
+  // 6. WEBRTC LIVE MULTIPLAYER (PeerJS)
+  // ==========================================
+  let peer = null;
+  let conn = null;
+  let myCode = '';
+
+  function initPeerLobby() {
+    if (peer) return;
+    myCode = String(Math.floor(1000 + Math.random() * 9000));
+    document.getElementById('myRoomCode').textContent = myCode;
+    const statusEl = document.getElementById('mpStatusTxt');
+
+    try {
+      peer = new Peer('drdrive3d-room-' + myCode);
+      peer.on('open', () => {
+        statusEl.textContent = '🟢 Online! Share code or join a friend below.';
+      });
+      peer.on('connection', (connection) => {
+        conn = connection;
+        setupConnHandlers(true);
+      });
+      peer.on('error', () => {
+        statusEl.textContent = '⚠️ Offline/NAT mode — use Quick AI Race or retry.';
+      });
+    } catch (e) {
+      statusEl.textContent = '⚠️ P2P unavailable — use Quick AI Race below.';
+    }
+  }
+
+  function setupConnHandlers(isHost) {
+    conn.on('open', () => {
+      showToast('🌐 Friend Connected! Starting 1v1 Race!');
+      startGame('MP_LIVE', isHost);
+    });
+    conn.on('data', (data) => {
+      if (data && data.type === 'STATE') {
+        rival.x = data.x;
+        rival.z = data.z;
+        rival.angle = data.angle;
+      }
+    });
+  }
+
+  document.getElementById('btnJoinRoom').onclick = () => {
+    const code = document.getElementById('joinCodeInput').value.trim();
+    if (code.length !== 4 || !peer) {
+      showToast('Enter a valid 4-digit Room Code!');
+      return;
+    }
+    document.getElementById('mpStatusTxt').textContent = 'Connecting to room ' + code + '...';
+    conn = peer.connect('drdrive3d-room-' + code);
+    setupConnHandlers(false);
+  };
+
+  // ==========================================
+  // 7. COCKPIT MULTI-TOUCH CONTROLS
+  // ==========================================
+  const input = {
+    wheelAngle: 0, // -150 to +150 deg in radians
+    wheelTouchId: null,
+    wheelStartAngle: 0,
+    wheelBaseAngle: 0,
+    gas: false,
+    brake: false
+  };
+
+  const wheelWrap = document.getElementById('wheelWrap');
+  const wheelSvg = document.getElementById('wheelSvg');
+  const gasPedal = document.getElementById('gasPedal');
+  const brakePedal = document.getElementById('brakePedal');
+
+  function getTouchAngle(clientX, clientY) {
+    const rect = wheelWrap.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    return Math.atan2(clientY - cy, clientX - cx);
+  }
+
+  wheelWrap.addEventListener('touchstart', e => {
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    input.wheelTouchId = t.identifier;
+    input.wheelStartAngle = getTouchAngle(t.clientX, t.clientY);
+    input.wheelBaseAngle = input.wheelAngle;
+  }, { passive: false });
+
+  window.addEventListener('touchmove', e => {
+    if (input.wheelTouchId === null) return;
+    for (const t of e.changedTouches) {
+      if (t.identifier === input.wheelTouchId) {
+        const cur = getTouchAngle(t.clientX, t.clientY);
+        let diff = cur - input.wheelStartAngle;
+        if (diff > Math.PI) diff -= Math.PI * 2;
+        if (diff < -Math.PI) diff += Math.PI * 2;
+        const maxLock = Math.PI * 0.85;
+        input.wheelAngle = Math.max(-maxLock, Math.min(maxLock, input.wheelBaseAngle + diff));
+        input.wheelStartAngle = cur;
+        input.wheelBaseAngle = input.wheelAngle;
+      }
+    }
+  }, { passive: false });
+
+  function endWheelTouch(e) {
+    for (const t of e.changedTouches) {
+      if (t.identifier === input.wheelTouchId) input.wheelTouchId = null;
+    }
+  }
+  window.addEventListener('touchend', endWheelTouch);
+  window.addEventListener('touchcancel', endWheelTouch);
+
+  // Pedals
+  gasPedal.addEventListener('touchstart', e => { e.preventDefault(); input.gas = true; gasPedal.classList.add('pressed'); }, { passive: false });
+  gasPedal.addEventListener('touchend', e => { e.preventDefault(); input.gas = false; gasPedal.classList.remove('pressed'); }, { passive: false });
+  brakePedal.addEventListener('touchstart', e => { e.preventDefault(); input.brake = true; brakePedal.classList.add('pressed'); }, { passive: false });
+  brakePedal.addEventListener('touchend', e => { e.preventDefault(); input.brake = false; brakePedal.classList.remove('pressed'); }, { passive: false });
+
+  // Gear Selector
+  document.querySelectorAll('.gear-slot').forEach(slot => {
+    slot.addEventListener('touchstart', e => {
+      e.preventDefault();
+      setGear(slot.dataset.gear);
+    }, { passive: false });
+    slot.addEventListener('click', () => setGear(slot.dataset.gear));
+  });
+
+  function setGear(g) {
+    player.gear = g;
+    document.querySelectorAll('.gear-slot').forEach(s => {
+      s.className = 'gear-slot' + (s.dataset.gear === g ? ' active-' + g : '');
+    });
+    playTone(320, 'triangle', 0.06, 0.12);
+  }
+
+  // Keyboard fallback for desktop testing
+  const keys = {};
+  window.addEventListener('keydown', e => {
+    keys[e.code] = true;
+    if (e.code === 'KeyR') setGear('R');
+    if (e.code === 'KeyP') setGear('P');
+    if (e.code === 'KeyD') setGear('D');
+  });
+  window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+  // ==========================================
+  // 8. GAME MODES & SPAWNERS
+  // ==========================================
+  let gameState = 'MENU'; // MENU, PLAY, END
+  let gameMode = 'HIGHWAY'; // HIGHWAY, MP_BOT, MP_LIVE, PARKING
+  let camMode = 0; // 0: Chase, 1: Cockpit/Hood, 2: Top-Down
+
+  function spawnTrafficRow(zPos) {
+    const laneIdx = Math.floor(Math.random() * 4);
+    const lx = LANE_X[laneIdx];
+    const isOncoming = laneIdx < 2 && gameMode === 'HIGHWAY';
+    const colors = [0x64748b, 0x10b981, 0x8b5cf6, 0xf97316, 0x06b6d4];
+    const mesh = createCarMesh(colors[Math.floor(Math.random() * colors.length)], false);
+
+    if (isOncoming) mesh.rotation.y = Math.PI;
+    mesh.position.set(lx, 0, zPos);
+    scene.add(mesh);
+
+    trafficList.push({
+      mesh,
+      laneIdx,
+      speed: isOncoming ? -(55 + Math.random() * 40) : (45 + Math.random() * 45),
+      nearMissed: false
+    });
+
+    // Spawn 3D spinning gold coin
+    if (Math.random() < 0.6) {
+      const coinMesh = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.75, 0.75, 0.18, 16),
+        new THREE.MeshStandardMaterial({ color: 0xfacc15, metalness: 0.8, roughness: 0.2 })
+      );
+      coinMesh.rotation.z = Math.PI / 2;
+      coinMesh.position.set(LANE_X[(laneIdx + 1) % 4], 0.9, zPos - 14);
+      scene.add(coinMesh);
+      coinList.push({ mesh: coinMesh, collected: false });
+    }
+  }
+
+  function setup3DParkingCourse(lvl) {
+    const totalDist = 110 + lvl * 35;
+    const coneGeo = new THREE.ConeGeometry(0.45, 1.1, 12);
+    const coneMat = new THREE.MeshStandardMaterial({ color: 0xf97316 });
+
+    function addCone(x, z) {
+      const m = new THREE.Mesh(coneGeo, coneMat);
+      m.position.set(x, 0.55, z);
+      scene.add(m);
+      coneList.push({ mesh: m });
+    }
+
+    // Chicane slalom obstacles
+    const gates = 3 + lvl;
+    for (let i = 1; i <= gates; i++) {
+      const gz = -i * (totalDist / (gates + 1));
+      const side = i % 2 === 0 ? -1 : 1;
+      for (let k = 0; k < 4; k++) {
+        addCone(side * (ROAD_WIDTH / 2 - 1.2 - k * 1.6), gz);
+      }
+    }
+
+    // Glowing 3D Green Parking Bay
+    const bayGroup = new THREE.Group();
+    const bayPlane = new THREE.Mesh(
+      new THREE.PlaneGeometry(3.2, 6.2),
+      new THREE.MeshBasicMaterial({ color: 0x22c55e, transparent: true, opacity: 0.45 })
+    );
+    bayPlane.rotation.x = -Math.PI / 2;
+    bayPlane.position.y = 0.04;
+    bayGroup.add(bayPlane);
+
+    const bayX = (lvl % 2 === 0) ? -3.5 : 3.5;
+    bayGroup.position.set(bayX, 0, -totalDist);
+    scene.add(bayGroup);
+    parkingBayMesh = bayGroup;
+
+    // Frame bay with cones
+    addCone(bayX - 1.9, -totalDist - 3.4);
+    addCone(bayX + 1.9, -totalDist - 3.4);
+  }
+
+  function startGame(mode, isHost = true) {
+    initAudio();
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+
+    gameMode = mode;
+    gameState = 'PLAY';
+
+    document.getElementById('menuOverlay').classList.add('hidden');
+    document.getElementById('mpOverlay').classList.add('hidden');
+    document.getElementById('endOverlay').classList.add('hidden');
+    document.getElementById('hud').classList.remove('hidden');
+    document.getElementById('controlsLayer').classList.remove('hidden');
+
+    clearWorldEntities();
+    rebuildPlayerCar();
+
+    input.wheelAngle = 0;
+    input.gas = false;
+    input.brake = false;
+    setGear('D');
+
+    player.x = isHost ? 1.75 : -1.75;
+    player.z = 0;
+    player.speed = 0;
+    player.angle = 0;
+    player.coinsEarned = 0;
+    player.nearMisses = 0;
+
+    // Configure Rival for Multiplayer modes
+    if (mode === 'MP_BOT' || mode === 'MP_LIVE') {
+      rival.active = true;
+      rival.isBot = (mode === 'MP_BOT');
+      rival.x = isHost ? -1.75 : 1.75;
+      rival.z = 0;
+      rival.speed = 0;
+      rival.angle = 0;
+      rivalMesh.visible = true;
+      document.getElementById('rivalTag').classList.remove('hidden');
+      document.getElementById('hudModeTxt').textContent = '1V1 RACE (1500m)';
+    } else {
+      rival.active = false;
+      rivalMesh.visible = false;
+      document.getElementById('rivalTag').classList.add('hidden');
+      document.getElementById('hudModeTxt').textContent = mode === 'HIGHWAY' ? 'HIGHWAY 3D' : `PARKING LVL ${saveData.parkLevel}`;
+    }
+
+    if (mode === 'PARKING') {
+      setup3DParkingCourse(saveData.parkLevel);
+    } else {
+      for (let i = 1; i <= 10; i++) {
+        spawnTrafficRow(-i * 38);
+      }
+    }
+  }
+
+  function endGame(won, title, sub) {
+    gameState = 'END';
+    if (engineGain) engineGain.gain.value = 0;
+    document.getElementById('hud').classList.add('hidden');
+    document.getElementById('controlsLayer').classList.add('hidden');
+    document.getElementById('rivalTag').classList.add('hidden');
+    document.getElementById('endOverlay').classList.remove('hidden');
+
+    if (won) {
+      sfxWin();
+      player.coinsEarned += 75;
+      if (gameMode === 'PARKING') saveData.parkLevel++;
+    } else {
+      sfxCrash();
+    }
+
+    const distMeters = Math.max(0, Math.floor(-player.z * 1.5));
+    if (gameMode === 'HIGHWAY' && distMeters > saveData.bestDist) {
+      saveData.bestDist = distMeters;
+    }
+
+    saveData.coins += player.coinsEarned;
+    save();
+
+    const titleEl = document.getElementById('endTitle');
+    titleEl.textContent = title;
+    titleEl.style.webkitTextFillColor = won ? '#4ade80' : '#f87171';
+    document.getElementById('endSub').textContent = sub;
+    document.getElementById('endDist').textContent = distMeters + 'm';
+    document.getElementById('endNear').textContent = player.nearMisses;
+    document.getElementById('endCoins').textContent = '+' + player.coinsEarned;
+  }
+
+  // ==========================================
+  // 9. MAIN 3D PHYSICS & RENDER LOOP
+  // ==========================================
+  let lastTime = performance.now();
+
+  function update(dt) {
+    if (gameState !== 'PLAY') return;
+
+    const spec = CARS[saveData.selected];
+
+    // Keyboard steering assist
+    if (keys['ArrowLeft'] || keys['KeyA']) input.wheelAngle = Math.max(-2.4, input.wheelAngle - 4.0 * dt);
+    else if (keys['ArrowRight'] || keys['KeyD']) input.wheelAngle = Math.min(2.4, input.wheelAngle + 4.0 * dt);
+    else if (input.wheelTouchId === null) {
+      input.wheelAngle *= Math.pow(0.06, dt);
+    }
+
+    // Rotate visual SVG Steering Wheel
+    wheelSvg.style.transform = `rotate(${(input.wheelAngle * 180 / Math.PI).toFixed(1)}deg)`;
+
+    const gasOn = input.gas || keys['ArrowUp'] || keys['KeyW'];
+    const brakeOn = input.brake || keys['ArrowDown'] || keys['KeyS'] || keys['Space'];
+
+    if (player.gear === 'P') {
+      player.speed *= Math.pow(0.01, dt);
+    } else if (gasOn) {
+      const dir = player.gear === 'D' ? 1 : -1;
+      const limit = player.gear === 'D' ? spec.maxSpeed : 75;
+      player.speed += dir * spec.accel * dt;
+      if (dir === 1 && player.speed > limit) player.speed = limit;
+      if (dir === -1 && player.speed < -limit) player.speed = -limit;
+    } else {
+      player.speed *= Math.pow(0.55, dt);
+    }
+
+    if (brakeOn) {
+      const s = Math.sign(player.speed);
+      player.speed -= s * 290 * dt;
+      if (Math.sign(player.speed) !== s) player.speed = 0;
+    }
+
+    // Steering & Velocity
+    const steerNorm = input.wheelAngle / (Math.PI * 0.85);
+    const speedFactor = Math.min(1, Math.abs(player.speed) / 50);
+    const dirSign = player.speed >= 0 ? 1 : -1;
+
+    player.angle -= steerNorm * spec.handling * speedFactor * dirSign * dt;
+    player.angle *= Math.pow(0.55, dt); // highway self-alignment
+
+    const forwardVel = (player.speed / 3.6); // convert km/h to 3D units/sec
+    player.x -= Math.sin(player.angle) * Math.abs(forwardVel) * 0.85 * dt * dirSign;
+    player.z -= Math.cos(player.angle) * forwardVel * dt;
+
+    // Update 3D Player Mesh
+    playerMesh.position.set(player.x, 0, player.z);
+    playerMesh.rotation.y = player.angle;
+    playerMesh.rotation.z = steerNorm * speedFactor * 0.06; // realistic body roll!
+
+    // Engine Sound Pitch
+    if (audioCtx && engineOsc && engineGain) {
+      const ratio = Math.abs(player.speed) / spec.maxSpeed;
+      engineOsc.frequency.setValueAtTime(52 + ratio * 155, audioCtx.currentTime);
+      engineGain.gain.setValueAtTime(0.04 + ratio * 0.09, audioCtx.currentTime);
+    }
+
+    // Recycle Infinite Road Chunks around player.z
+    roadChunks.forEach(chunk => {
+      if (chunk.position.z - player.z > CHUNK_LEN * 1.5) {
+        chunk.position.z -= NUM_CHUNKS * CHUNK_LEN;
+      } else if (player.z - chunk.position.z > NUM_CHUNKS * CHUNK_LEN - CHUNK_LEN) {
+        chunk.position.z += NUM_CHUNKS * CHUNK_LEN;
+      }
+    });
+
+    // Guardrail Crash Check
+    if (Math.abs(player.x) > ROAD_WIDTH / 2 - 0.95) {
+      endGame(false, 'GUARDRAIL CRASH!', 'Stay inside the 3D highway barriers!');
+      return;
+    }
+
+    // Coin Collection & Animation
+    coinList.forEach(c => {
+      if (!c.collected) {
+        c.mesh.rotation.y += 3.5 * dt;
+        if (Math.hypot(player.x - c.mesh.position.x, player.z - c.mesh.position.z) < 2.1) {
+          c.collected = true;
+          c.mesh.visible = false;
+          player.coinsEarned += 15;
+          sfxCoin();
+        }
+      }
+    });
+
+    // Traffic Logic
+    if (gameMode !== 'PARKING') {
+      for (const t of trafficList) {
+        t.mesh.position.z -= (t.speed / 3.6) * dt;
+
+        // Recycle traffic ahead
+        if (t.mesh.position.z - player.z > 25) {
+          const laneIdx = Math.floor(Math.random() * 4);
+          const isOncoming = laneIdx < 2 && gameMode === 'HIGHWAY';
+          t.laneIdx = laneIdx;
+          t.mesh.position.x = LANE_X[laneIdx];
+          t.mesh.position.z = player.z - 220 - Math.random() * 90;
+          t.mesh.rotation.y = isOncoming ? Math.PI : 0;
+          t.speed = isOncoming ? -(55 + Math.random() * 40) : (45 + Math.random() * 45);
+          t.nearMissed = false;
+        }
+
+        // 3D Bounding Box Collision
+        const dx = Math.abs(player.x - t.mesh.position.x);
+        const dz = Math.abs(player.z - t.mesh.position.z);
+        if (dx < 1.75 && dz < 3.85) {
+          endGame(false, 'TRAFFIC WRECK!', 'You slammed into highway traffic!');
+          return;
+        }
+
+        // Near Miss Detection
+        if (!t.nearMissed && player.speed > 110 && dz < 2.5 && dx < 3.1) {
+          t.nearMissed = true;
+          player.nearMisses++;
+          player.coinsEarned += 25;
+          sfxCoin();
+          showToast('🔥 3D NEAR MISS +25!');
+        }
+      }
+    } else {
+      // 3D PARKING LOGIC
+      for (const cone of coneList) {
+        if (Math.hypot(player.x - cone.mesh.position.x, player.z - cone.mesh.position.z) < 1.35) {
+          endGame(false, 'CONE HIT!', 'Use Reverse (R) and feather the gas carefully.');
+          return;
+        }
+      }
+
+      if (parkingBayMesh) {
+        const bx = parkingBayMesh.position.x;
+        const bz = parkingBayMesh.position.z;
+        const distBay = Math.max(0, Math.floor((player.z - bz) * 1.5));
+        document.getElementById('hudSubTxt').textContent = `Bay: ${distBay}m`;
+
+        if (Math.abs(player.x - bx) < 1.1 && Math.abs(player.z - bz) < 1.8 && Math.abs(player.speed) < 3) {
+          if (player.gear === 'P') {
+            endGame(true, 'PERFECT 3D PARK!', `Level ${saveData.parkLevel} mastered!`);
+            return;
+          } else {
+            showToast('Shift into P (Park) to finish!');
+          }
+        }
+      }
+    }
+
+    // MULTIPLAYER RIVAL UPDATE (Bot or Live WebRTC)
+    const distMeters = Math.max(0, Math.floor(-player.z * 1.5));
+    if (rival.active) {
+      if (rival.isBot) {
+        // Smart rubber-banding AI Rival
+        const targetSpeed = Math.min(spec.maxSpeed * 0.96, 185 + (player.z < rival.z ? 45 : -15));
+        rival.speed += (targetSpeed - rival.speed) * 2.0 * dt;
+        rival.z -= (rival.speed / 3.6) * dt;
+
+        // Bot dodges traffic in its lane
+        trafficList.forEach(t => {
+          const dz = rival.z - t.mesh.position.z;
+          if (dz > 0 && dz < 28 && Math.abs(rival.x - t.mesh.position.x) < 2.2) {
+            rival.x += (rival.x > 0 ? -3.5 : 3.5) * dt * 3;
+          }
+        });
+        rival.x = Math.max(-5.2, Math.min(5.2, rival.x));
+      } else if (conn && conn.open) {
+        conn.send({ type: 'STATE', x: player.x, z: player.z, angle: player.angle });
+      }
+
+      rivalMesh.position.set(rival.x, 0, rival.z);
+      rivalMesh.rotation.y = rival.angle;
+
+      // Project 3D Rival Position to 2D Screen Tag
+      const tagVec = rivalMesh.position.clone().add(new THREE.Vector3(0, 2.4, 0));
+      tagVec.project(camera);
+      const tagEl = document.getElementById('rivalTag');
+      if (tagVec.z < 1) {
+        tagEl.style.left = ((tagVec.x * 0.5 + 0.5) * window.innerWidth) + 'px';
+        tagEl.style.top = ((-(tagVec.y * 0.5) + 0.5) * window.innerHeight) + 'px';
+        const gap = Math.floor((player.z - rival.z) * 1.5);
+        tagEl.textContent = `🏎️ RIVAL (${gap >= 0 ? '+' + gap : gap}m)`;
+        tagEl.classList.remove('hidden');
+      } else {
+        tagEl.classList.add('hidden');
+      }
+
+      // Check 1500m Finish Line
+      const rivalMeters = Math.max(0, Math.floor(-rival.z * 1.5));
+      document.getElementById('hudSubTxt').textContent = `You: ${distMeters}m | Rival: ${rivalMeters}m`;
+
+      if (distMeters >= 1500) {
+        endGame(true, '🏆 YOU WON THE 1V1!', 'You crossed the 1,500m finish line first!');
+        return;
+      } else if (rivalMeters >= 1500) {
+        endGame(false, 'RIVAL WON!', 'Your opponent beat you to the 1,500m finish!');
+        return;
+      }
+    } else if (gameMode === 'HIGHWAY') {
+      document.getElementById('hudSubTxt').textContent = `Dist: ${distMeters}m`;
+    }
+
+    // Update 3D Camera Modes
+    if (camMode === 0) {
+      // 3D Chase Cam
+      camera.position.x += (player.x * 0.75 - camera.position.x) * 10 * dt;
+      camera.position.y = 3.3;
+      camera.position.z = player.z + 6.8;
+      camera.lookAt(player.x * 0.85, 1.0, player.z - 12);
+    } else if (camMode === 1) {
+      // First-Person Dr. Driving Hood / Cockpit Cam
+      camera.position.set(player.x, 1.38, player.z - 0.35);
+      camera.lookAt(player.x - Math.sin(player.angle) * 20, 1.2, player.z - 25);
+    } else {
+      // 3D Helicopter Top-Down Cam
+      camera.position.set(player.x * 0.5, 18, player.z + 8);
+      camera.lookAt(player.x * 0.5, 0, player.z - 8);
+    }
+
+    document.getElementById('hudSpeed').textContent = Math.floor(Math.abs(player.speed));
+    document.getElementById('hudCoins').textContent = saveData.coins + player.coinsEarned;
+  }
+
+  function animate(now) {
+    const dt = Math.min(0.05, (now - lastTime) / 1000);
+    lastTime = now;
+
+    if (gameState === 'MENU') {
+      // Showroom rotating camera around player car in Menu
+      const t = now * 0.0008;
+      playerMesh.position.set(0, 0, 0);
+      camera.position.set(Math.sin(t) * 6.5, 2.8, Math.cos(t) * 6.5);
+      camera.lookAt(0, 0.8, 0);
+    } else {
+      update(dt);
+    }
+
+    renderer.render(scene, camera);
+    requestAnimationFrame(animate);
+  }
+  requestAnimationFrame(animate);
+
+  // ==========================================
+  // 10. GARAGE & MENU UI BINDINGS
+  // ==========================================
+  function renderGarage() {
+    document.getElementById('menuCoins').textContent = saveData.coins;
+    document.getElementById('menuBest').textContent = saveData.bestDist;
+    document.getElementById('menuParkLvl').textContent = saveData.parkLevel;
+
+    const bar = document.getElementById('garageBar');
+    bar.innerHTML = '';
+    CARS.forEach((c, idx) => {
+      const owned = saveData.unlocked.includes(idx);
+      const active = saveData.selected === idx;
+      const card = document.createElement('div');
+      card.className = 'car-card' + (active ? ' active' : '');
+      card.innerHTML = `
+        <div class="car-swatch" style="background:${c.hex}"></div>
+        <div class="car-title">${c.name}</div>
+        <div class="car-sub">${owned ? (active ? 'EQUIPPED' : 'OWNED') : '🪙 ' + c.price}</div>
+      `;
+      card.onclick = () => {
+        initAudio();
+        if (owned) {
+          saveData.selected = idx;
+          save();
+          rebuildPlayerCar();
+          renderGarage();
+        } else if (saveData.coins >= c.price) {
+          saveData.coins -= c.price;
+          saveData.unlocked.push(idx);
+          saveData.selected = idx;
+          save();
+          sfxCoin();
+          rebuildPlayerCar();
+          renderGarage();
+        } else {
+          showToast('Need more coins!');
+        }
+      };
+      bar.appendChild(card);
+    });
+  }
+  renderGarage();
+
+  document.getElementById('btnHighway').onclick = () => startGame('HIGHWAY');
+  document.getElementById('btnParking').onclick = () => startGame('PARKING');
+  document.getElementById('btnMultiplayerMenu').onclick = () => {
+    document.getElementById('menuOverlay').classList.add('hidden');
+    document.getElementById('mpOverlay').classList.remove('hidden');
+    initPeerLobby();
+  };
+  document.getElementById('btnBotRace').onclick = () => startGame('MP_BOT');
+  document.getElementById('btnMpBack').onclick = () => {
+    document.getElementById('mpOverlay').classList.add('hidden');
+    document.getElementById('menuOverlay').classList.remove('hidden');
+  };
+  document.getElementById('btnRetry').onclick = () => startGame(gameMode);
+  document.getElementById('btnHome').onclick = () => {
+    gameState = 'MENU';
+    document.getElementById('endOverlay').classList.add('hidden');
+    document.getElementById('menuOverlay').classList.remove('hidden');
+    renderGarage();
+  };
+  document.getElementById('camBtn').onclick = () => {
+    camMode = (camMode + 1) % 3;
+    const labels = ['🎥 CAM: CHASE', '🎥 CAM: COCKPIT', '🎥 CAM: TOP'];
+    document.getElementById('camBtn').textContent = labels[camMode];
+  };
+})();
+</script>
+</body>
+</html>
